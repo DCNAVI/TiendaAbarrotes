@@ -2,6 +2,18 @@
 
 Esta es una estructura inicial. Las pruebas funcionales de los módulos están pendientes; no marcar casos como aprobados sin ejecutarlos.
 
+## Verificación inicial realizada el 3 de noviembre de 2026
+
+- Sintaxis de los 27 archivos PHP: correcta con PHP 8.0.30.
+- Sintaxis de assets/js/app.js: correcta mediante node --check.
+- Importación de schema.sql y seed.sql en una base temporal de MariaDB 10.4.32: correcta; seis tablas, tres categorías y diez productos. La base temporal se eliminó al terminar.
+- Inicio y login por HTTP: respuesta 200 sin avisos PHP, cookie de sesión y token CSRF generado.
+- Acceso a productos sin sesión: redirección a login.php.
+- Logout sin CSRF: respuesta 403; con token válido: redirección a login.php.
+- Para esta verificación se configuró session.save_path en el directorio temporal permitido, porque el entorno de pruebas no puede escribir en C:\xampp\tmp. En un entorno local, PHP necesita permisos sobre su directorio de sesiones.
+
+No se ha probado todavía el login contra un usuario real ni los flujos de negocio pendientes.
+
 | Caso | Pasos y resultado esperado | Estado |
 | --- | --- | --- |
 | Base de datos | Importar schema y seed en base vacía; comprobar seis tablas, tres categorías y diez productos | Pendiente |
