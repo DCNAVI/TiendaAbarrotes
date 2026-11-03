@@ -1,6 +1,6 @@
 # Tienda de abarrotes
 
-Estructura inicial de un punto de venta colaborativo con PHP, MySQL/MariaDB y Bootstrap 5. Incluye conexión PDO, login base, permisos, CSRF y plantillas por módulo. El CRUD, carrito, movimientos y reportes están pendientes: esta versión no es un punto de venta terminado.
+Estructura inicial de un punto de venta colaborativo con PHP, MySQL/MariaDB y Bootstrap 5. Incluye conexión PDO, login, permisos, CSRF y administración de usuarios terminada. Productos, categorías, carrito, movimientos y reportes están pendientes: esta versión no es un punto de venta terminado.
 
 ## Requisitos y ejecución
 
@@ -59,3 +59,7 @@ Cada módulo tiene su README. Ver [contrato de datos](database/README.md), [cola
 - Venta, detalles, stock y movimientos se guardarán en una sola transacción, bloqueando productos con `SELECT ... FOR UPDATE`.
 - Los productos y usuarios se desactivan; las ventas no se borran. Su cancelación requiere revertir stock exactamente una vez.
 - No publicar credenciales, datos privados ni el documento de la actividad, que se conserva localmente.
+
+## Avance de Ivan
+
+U01–U09 terminadas y verificadas localmente. U10 pendiente de integración con los módulos del equipo. Consultar [actividades marcadas](docs/actividad_ivan.md) y [pruebas de usuarios](usuarios/README.md).

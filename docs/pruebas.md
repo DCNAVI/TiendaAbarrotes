@@ -27,3 +27,11 @@ No se ha probado todavía el login contra un usuario real ni los flujos de negoc
 | Concurrencia | Dos ventas simultáneas sobre pocas unidades; no permitir stock negativo ni venta parcial | Pendiente de implementación |
 
 Por cada módulo registrar al menos tres casos con fecha, responsable, datos usados, resultado real y evidencia. Añadir capturas al PR, sin contraseñas ni datos privados.
+
+## Módulo de Ivan verificado el 3 de noviembre de 2026
+
+La verificación posterior con `C:\xampp\php\php.exe scripts/probar_usuarios.php` completa las pruebas de usuarios que figuraban pendientes arriba. Resultado: 20 verificaciones aprobadas con PHP 8.0.30 y MariaDB 10.4.32, mediante HTTP y comprobación de persistencia SQL en una base temporal eliminada al finalizar.
+
+Se probaron importación del esquema y seed, login correcto e incorrecto, usuario inactivo, alta, edición, hash de contraseña, correo duplicado, rol inválido, identificadores inválidos/inexistentes, escape HTML, POST sin CSRF, permisos de cajero, desactivación con sesión abierta, protección de la propia cuenta y logout con pérdida de acceso. No hubo avisos ni errores PHP.
+
+Los pasos y resultados están en [usuarios/README.md](../usuarios/README.md). La lista de U01–U09 terminadas y U10 pendiente está en [actividad de Ivan](actividad_ivan.md). Los casos de negocio de otros integrantes y la integración completa permanecen pendientes.
