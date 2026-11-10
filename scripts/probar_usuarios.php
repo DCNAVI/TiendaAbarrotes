@@ -45,7 +45,7 @@ try {
     check((int) $db->query('SELECT COUNT(*) FROM productos')->fetchColumn() === 10 && (int) $db->query('SELECT COUNT(*) FROM categorias')->fetchColumn() === 3, 'U03 importación de esquema y seed en base vacía');
     mkdir($temp);
     mkdir($temp . '/sessions');
-    foreach (['includes', 'config', 'usuarios', 'assets'] as $dir) {
+    foreach (['includes', 'config', 'usuarios', 'assets', 'inventario', 'reportes'] as $dir) {
         $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root . '/' . $dir, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::SELF_FIRST);
         mkdir($temp . '/' . $dir);
         foreach ($iterator as $entry) {
@@ -96,6 +96,58 @@ try {
     $cashCsrf = token(request('login.php', 'cashier')[1]);
     check(request('login.php', 'cashier', ['csrf' => $cashCsrf, 'email' => $record['email'], 'password' => $password])[0] === 302, 'U05 cajero inicia sesión');
     check(request('usuarios/index.php', 'cashier')[0] === 403 && request('usuarios/crear.php', 'cashier')[0] === 403 && request('usuarios/editar.php?id=1', 'cashier')[0] === 403 && request('usuarios/crear.php', 'cashier', $user)[0] === 403, 'U07 cajero sin acceso a listado, alta, edición ni POST');
+    // Integración: el cajero tiene id distinto de 1 para detectar atribuciones incorrectas.
+    $inventoryCsrf = token(request('inventario/entrada.php', 'cashier')[1]);
+    check(token(request('inventario/ajuste.php', 'cashier')[1]) === $inventoryCsrf, 'I03 formularios de entrada y ajuste incluyen CSRF');
+    check(request('inventario/index.php', 'anon')[0] === 302 && request('inventario/guardar_movimiento.php', 'anon', [])[0] === 302, 'I04 inventario exige sesión');
+    check(request('inventario/guardar_movimiento.php', 'cashier')[0] === 405, 'I04 guardado exige POST');
+    $movement = ['csrf' => $inventoryCsrf, 'tipo' => 'entrada', 'producto_id' => '1', 'cantidad' => '5', 'motivo' => '<script>alert(1)</script>'];
+    $withoutToken = $movement;
+    unset($withoutToken['csrf']);
+    check(request('inventario/guardar_movimiento.php', 'cashier', $withoutToken)[0] === 403 && (int) $db->query('SELECT COUNT(*) FROM inventario_movimientos')->fetchColumn() === 0, 'I04 CSRF rechazado sin escrituras');
+    check(request('inventario/guardar_movimiento.php', 'cashier', $movement)[0] === 302 && (int) $db->query('SELECT stock_actual FROM productos WHERE id=1')->fetchColumn() === 5, 'I05 entrada aumenta existencias');
+    check((int) $db->query('SELECT usuario_id FROM inventario_movimientos LIMIT 1')->fetchColumn() === (int) $record['id'], 'I07 movimiento atribuido al usuario autenticado');
+    $adjust = array_replace($movement, ['tipo' => 'ajuste', 'direccion' => 'resta', 'cantidad' => '3']);
+    request('inventario/guardar_movimiento.php', 'cashier', $adjust);
+    check((int) $db->query('SELECT stock_actual FROM productos WHERE id=1')->fetchColumn() === 2 && (int) $db->query('SELECT cantidad FROM inventario_movimientos ORDER BY id DESC LIMIT 1')->fetchColumn() === -3, 'I06 ajuste resta stock y registra diferencia negativa');
+    request('inventario/guardar_movimiento.php', 'cashier', array_replace($adjust, ['direccion' => 'suma', 'cantidad' => '1']));
+    check((int) $db->query('SELECT stock_actual FROM productos WHERE id=1')->fetchColumn() === 3, 'I06 ajuste positivo aumenta stock');
+    $invalidMovements = [
+        ['cantidad' => '4', 'tipo' => 'ajuste', 'direccion' => 'resta'],
+        ['cantidad' => '1.5'], ['cantidad' => '0'], ['cantidad' => '-2'],
+        ['cantidad' => ['1']], ['producto_id' => '999999'], ['motivo' => ['texto']],
+        ['motivo' => str_repeat('a', 256)], ['tipo' => 'salida'],
+        ['tipo' => 'ajuste', 'direccion' => 'otra'], ['cantidad' => '2147483647'],
+    ];
+    foreach ($invalidMovements as $invalidMovement) {
+        check(request('inventario/guardar_movimiento.php', 'cashier', array_replace($movement, $invalidMovement))[0] === 302
+            && (int) $db->query('SELECT stock_actual FROM productos WHERE id=1')->fetchColumn() === 3
+            && (int) $db->query('SELECT COUNT(*) FROM inventario_movimientos')->fetchColumn() === 3,
+            'I04 movimiento inválido rechazado sin cambios: ' . json_encode($invalidMovement));
+    }
+    $history = request('inventario/historial.php?producto_id=1&tipo=ajuste', 'cashier');
+    check($history[0] === 200 && str_contains($history[1], '&lt;script&gt;alert(1)&lt;/script&gt;') && !str_contains($history[1], '<script>alert(1)</script>'), 'I08 historial filtra y escapa motivos');
+    $inventory = request('inventario/index.php?q=ACE&bajo=1', 'cashier');
+    check($inventory[0] === 200 && substr_count($inventory[1], '<!doctype html>') === 1 && str_contains($inventory[1], '</html>'), 'I01 listado con filtros y layout completo');
+    check((int) $db->query('SELECT SUM(cantidad) FROM inventario_movimientos WHERE producto_id=1')->fetchColumn() === 3, 'I05 saldo coincide con movimientos');
+    foreach (['ventas.php', 'resumen.php'] as $report) {
+        $response = request('reportes/' . $report);
+        check($response[0] === 200 && !str_contains($response[1], 'No fue posible'), 'U10 reporte administrativo disponible: ' . $report);
+        check(request('reportes/' . $report, 'cashier')[0] === 403, 'U10 reportes rechazan cajero: ' . $report);
+    }
+    check(request('reportes/detalle.php?id=abc')[0] === 400 && request('reportes/detalle.php?id=999999')[0] === 404, 'U10 detalle valida folio');
+    require_once $root . '/inventario/funciones.php';
+    try {
+        descontarStockPorVenta($db, 1, 1, (int) $record['id']);
+        check(false, 'I09 descuento fuera de transacción rechazado');
+    } catch (LogicException $expected) {
+        check(true, 'I09 descuento fuera de transacción rechazado');
+    }
+    $db->beginTransaction();
+    descontarStockPorVenta($db, 1, 1, (int) $record['id']);
+    check((int) $db->query('SELECT stock_actual FROM productos WHERE id=1')->fetchColumn() === 2, 'I09 función compartida descuenta dentro de transacción');
+    $db->rollBack();
+    check((int) $db->query('SELECT stock_actual FROM productos WHERE id=1')->fetchColumn() === 3 && (int) $db->query('SELECT COUNT(*) FROM inventario_movimientos')->fetchColumn() === 3, 'I09 rollback revierte stock y movimiento juntos');
     $edit['activo'] = '0';
     check(request('usuarios/editar.php?id=' . $record['id'], 'admin', $edit)[0] === 302 && request('index.php', 'cashier')[0] === 302, 'U07 desactivación revoca sesión abierta');
     $cashCsrf = token(request('login.php', 'cashier')[1]);
@@ -110,7 +162,10 @@ try {
     $failed = true;
 } finally {
     if (is_resource($server)) { proc_terminate($server); proc_close($server); }
-    if ($db) { $db->exec('DROP DATABASE IF EXISTS `' . $dbName . '`'); }
+    if ($db) {
+        if ($db->inTransaction()) { $db->rollBack(); }
+        $db->exec('DROP DATABASE IF EXISTS `' . $dbName . '`');
+    }
     if (is_dir($temp)) { removeTestDirectory($temp); }
 }
 exit(empty($failed) ? 0 : 1);

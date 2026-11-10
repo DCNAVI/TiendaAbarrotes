@@ -59,3 +59,18 @@ Rutas: `reportes/ventas.php`, `reportes/detalle.php`, `reportes/resumen.php`.
 | 13 | Impresión | Botón "Imprimir reporte" → vista previa | Sin navbar, filtros ni botones; con línea de periodo | Pendiente | |
 | 14 | Permisos: sin sesión | Abrir `reportes/ventas.php` sin iniciar sesión | Redirige a login | Pendiente | |
 | 15 | Permisos: cajero | Iniciar sesión como cajero y abrir los 3 reportes | 403 "Acceso denegado" (con `REPORTES_CAJERO_VE_PROPIAS = false`) | Pendiente | |
+
+## Integración local verificada el 10 de noviembre de 2026
+
+Se integraron `origin/main` (79480cf, reportes de Isacc) y `origin/feature/inventario` (ba24b04, inventario de Cristo) en `feature/usuarios`, conservando la administración de usuarios. Inventario tenía un historial independiente; se conservaron los módulos comunes actuales y se incorporaron sus siete archivos. El conflicto del registro de pruebas se resolvió conservando los registros de usuarios y reportes.
+
+Resultado de `C:\xampp\php\php.exe scripts/probar_usuarios.php`: **50 verificaciones aprobadas**, mediante HTTP y consultas SQL sobre una instancia MariaDB temporal aislada. La base, la copia de la aplicación y la instancia se eliminaron al finalizar. La sintaxis de los 35 archivos PHP es correcta.
+
+- Usuarios: las 20 verificaciones anteriores siguen aprobando, incluidos permisos, CSRF, desactivación y logout.
+- Inventario: formularios con CSRF, sesión obligatoria, POST obligatorio, entradas, ajustes positivos/negativos, autor real del movimiento, rechazo de stock negativo, cantidades no enteras, arreglos manipulados, motivo largo, producto inexistente y desbordamiento. Las operaciones inválidas conservan stock y movimientos. El historial escapa motivos y el saldo coincide con la suma de movimientos.
+- Función compartida: exige una transacción activa; el rollback revierte stock y movimiento juntos.
+- Reportes: listado y resumen responden 200 para administrador, rechazan al cajero con 403 y el detalle responde 400/404 ante folios inválidos/inexistentes. Se normalizó `resumen.php` para que los enlaces funcionen también en sistemas que distinguen mayúsculas.
+
+Correcciones de integración: CSRF obligatorio, usuario tomado de la sesión común, lectura de stock con `FOR UPDATE` dentro de la transacción, validación de cantidades y dirección, mensajes escapados y cierre correcto del layout. Se conserva el acceso de usuarios autenticados a inventario.
+
+Pendientes: venta completa y su idempotencia, prueba de concurrencia simultánea, cifras de reportes con ventas reales, impresión y revisión visual. Las pruebas específicas de reportes de la tabla anterior conservan su estado pendiente. No se publicó ni se hizo push de esta integración local.
